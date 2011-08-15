@@ -1,6 +1,51 @@
 describe("BSP", function() {
-  var bsp;
+  var bsp
   beforeEach(function() { bsp = new BSP(); });
+  
+  it("0.5rad Y-axis rotation hit", function() {
+    bsp.addMesh(new Jax.Mesh.Cube());
+    var cam = new Jax.Camera();
+    cam.setPosition([1.01,0,0]);
+    cam.rotate(0.5, [0,1,0]);
+    
+    expect(bsp.collide(bsp, cam.getTransformationMatrix())).toBeTruthy();
+  });
+  
+  describe("with one sphere", function() {
+    beforeEach(function() {
+      mesh = new Jax.Mesh.Cube();
+      bsp.addMesh(mesh);
+      bsp.finalize();
+    });
+    
+    it("should not have any children which exceed the bounds of any of their parents", function() {
+      function node(n) {
+        function children(o, callback) {
+          if (o.front) callback(o.front);
+          if (o.back) callback(o.back);
+        }
+        
+        children(n, function(c) {
+          // let's not worry about triangles just yet
+          if (c instanceof Jax.Geometry.Triangle) return;
+          
+          var ns = vec3.create(n.getHalfSize());
+          var cs = vec3.create(c.getHalfSize());
+          vec3.add(ns, n.center, ns);
+          vec3.add(cs, c.center, cs);
+          
+          var recurse = false;
+          for (var x = 0; x < 3; x++) {
+            recurse = ns[x] + Math.EPSILON > cs[x] - Math.EPSILON;
+            expect(ns[x] + Math.EPSILON).toBeGreaterThan(cs[x] - Math.EPSILON);
+          }
+            
+          if (recurse) node(c);
+        });
+      }
+      node(bsp);
+    });
+  });
   
   describe("two separate BSP spheres", function() {
     var mesh, bsp1, bsp2, cam1, cam2;
@@ -23,6 +68,12 @@ describe("BSP", function() {
     }
     
     it("should collide", function() {
+      expect(bsp1.collide(bsp2, mat())).toBeTruthy();
+    });
+    
+    it("should collide if offset and rotated", function() {
+      cam2.setPosition([0.25,0,0]);
+      cam2.yaw(1);
       expect(bsp1.collide(bsp2, mat())).toBeTruthy();
     });
     
@@ -51,7 +102,7 @@ describe("BSP", function() {
     });
     
     it("should have accurate halfSize", function() {
-      expect(bsp.getHalfSize()).toEqualVector([1,0.5,Math.EPSILON]);
+      expect(bsp.getHalfSize()).toEqualVector([1,0.5,0.01]);
     });
   });
   
@@ -63,7 +114,7 @@ describe("BSP", function() {
     });
     
     it("should have accurate halfSize", function() {
-      expect(bsp.getHalfSize()).toEqualVector([1,0.8333333730697632,Math.EPSILON]);
+      expect(bsp.getHalfSize()).toEqualVector([1,1,0.01]);
     });
     
     it("should be only 1 node deep", function() {
@@ -106,6 +157,28 @@ describe("BSP", function() {
       expect(bsp.front.back).toBeKindOf(Jax.Geometry.Triangle);
       expect(bsp.back.front).toBeKindOf(Jax.Geometry.Triangle);
       expect(bsp.back.back).toBeKindOf(Jax.Geometry.Triangle);
+    });
+    
+    it("should have depth values assigned", function() {
+      expect(bsp.depth).toEqual(0);
+      expect(bsp.front.depth).toEqual(1);
+      expect(bsp.back.depth).toEqual(1);
+      expect(bsp.front.front.depth).toEqual(2);
+      expect(bsp.front.back.depth).toEqual(2);
+      expect(bsp.back.front.depth).toEqual(2);
+      expect(bsp.back.back.depth).toEqual(2);
+    });
+  });
+  
+  describe("with a cube", function() {
+    beforeEach(function() {
+      bsp.addMesh(new Jax.Mesh.Cube());
+      bsp.finalize();
+    });
+    
+    it("should be 4 nodes deep", function() {
+      // sqrt(12 triangles) = 3.5 ~= 4
+      expect(bsp.getTreeDepth()).toEqual(4);
     });
   });
 });

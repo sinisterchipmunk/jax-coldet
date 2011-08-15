@@ -52,19 +52,20 @@ var BSP = (function() {
   // one of the dimensions will be 0; in this case, 
   // that dimension of the bounding box will be set to a
   // very small positive value, instead.
-  function calcTriangleDimensions(tri) {
-    var result = vec3.create();
+  function calcTriangleExtents(tri) {
     var min = vec3.create(), max = vec3.create();
 
     vec3.min(vec3.min(tri.a, tri.b, min), tri.c, min);
     vec3.max(vec3.max(tri.a, tri.b, max), tri.c, max);
-    min_size = Math.EPSILON * 2;
+    min_size = 0.01;
     for (var i = 0; i < 3; i++) {
-      result[i] = max[i] - min[i];
-      if (result[i] < min_size) result[i] = min_size;
+      if (max[i] - min[i] < min_size * 2) {
+        max[i] += min_size;
+        min[i] -= min_size;
+      }
     }
 
-    return vec3.scale(result, 0.5);
+    return [min, max];
   }
   
   return Jax.Class.create({
@@ -73,6 +74,72 @@ var BSP = (function() {
       this.back = null;
       this.triangles = [];
       if (front || back) this.set(front, back);
+    },
+    
+    /**
+     * BSP#getRenderable() -> Jax.Model
+     * 
+     * Returns a model with a mesh assigned to it which, when rendered, allows
+     * you to visualize this BSP tree starting with the current node.
+     *
+     * If called more than once, multiple separate models will be returned.
+     **/
+    getRenderable: function(startDepth) {
+      startDepth = startDepth || 0;
+      
+      var self = this;
+      function p(n, v, c) {
+        if (n.front instanceof BSP) p(n.front, v, c);
+        if (n.back  instanceof BSP) p(n.back,  v, c);
+        if (n.depth < startDepth) return;
+        
+        var _c = n.depth == 0 ? 1 : 1 / n.depth;
+        for (var i = 0; i < 24; i++) c.push(_c,_c,_c,1);
+        
+        var hs = n.getHalfSize();
+
+        v.push(n.center[0]-hs[0], n.center[1]-hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]-hs[1], n.center[2]-hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]+hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]+hs[1], n.center[2]-hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]-hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]-hs[0], n.center[1]+hs[1], n.center[2]-hs[2]);
+              
+        v.push(n.center[0]+hs[0], n.center[1]-hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]+hs[1], n.center[2]-hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]-hs[1], n.center[2]+hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]-hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]+hs[1], n.center[2]+hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]+hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]-hs[1], n.center[2]+hs[2]);
+        v.push(n.center[0]-hs[0], n.center[1]+hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]+hs[0], n.center[1]-hs[1], n.center[2]+hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]+hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]-hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]-hs[0], n.center[1]-hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]-hs[0], n.center[1]+hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]-hs[0], n.center[1]+hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]+hs[0], n.center[1]-hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]-hs[1], n.center[2]+hs[2]);
+              
+        v.push(n.center[0]+hs[0], n.center[1]+hs[1], n.center[2]-hs[2]);
+        v.push(n.center[0]+hs[0], n.center[1]+hs[1], n.center[2]+hs[2]);
+      }
+      return new Jax.Model({mesh: this.mesh = this.mesh || new Jax.Mesh({
+        init: function(v, c) {
+          this.draw_mode = GL_LINES;
+          p(self, v, c);
+        }
+      })});
     },
     
     /**
@@ -95,16 +162,8 @@ var BSP = (function() {
     set: function(nodeFront, nodeBack) {
       this.front = nodeFront;
       this.back = nodeBack;
-      this.center = vec3.create();
-      
-      var c = 0;
-      if (nodeFront)  { vec3.add(this.center, nodeFront.center,  this.center); c++; }
-      if (nodeBack)   { vec3.add(this.center, nodeBack.center, this.center); c++; }
-      if (c > 0) vec3.scale(this.center, 1.0 / c);
-      
-      var halfSize = this.calcHalfSize();
-      this.box = new Box(vec3.subtract(this.center, halfSize, vec3.create()),
-                         vec3.scale(halfSize, 2, vec3.create()));
+      this.calcBounds();
+      this.box = new Box(this.center, this.halfSize);
     },
     
     /**
@@ -189,35 +248,42 @@ var BSP = (function() {
     getCollision: function() { return this.collision; },
     
     getHalfSize: function() {
-      return this.halfSize || this.calcHalfSize();
+      return this.halfSize || this.calcBounds().halfSize;
     },
     
-    calcHalfSize: function() {
-      this.halfSize = this.halfSize || vec3.create();
-      var min, max;
-      
+    calcBounds: function() {
+      var min = vec3.create([ 0xffffffff,  0xffffffff,  0xffffffff]),
+          max = vec3.create([-0xffffffff, -0xffffffff, -0xffffffff]);
+
       function calcSide(side) {
-        var size, cmin, cmax;
-        if (side instanceof BSP) size = side.getHalfSize();
-        else size = calcTriangleDimensions(side);
-        cmin = vec3.subtract(side.center, size, vec3.create());
-        cmax = vec3.add(side.center, size, vec3.create());
-        if (min) {
-          vec3.min(min, cmin, min);
-          vec3.max(max, cmax, max);
+        var smin, smax;
+        
+        if (side instanceof Jax.Geometry.Triangle) {
+          var v = calcTriangleExtents(side);
+          smin = v[0];
+          smax = v[1];
         } else {
-          min = vec3.create(cmin);
-          max = vec3.create(cmax);
+          smin = vec3.subtract(side.center, side.getHalfSize(), vec3.create());
+          smax = vec3.add(side.center, side.getHalfSize(), vec3.create());
         }
+        
+        vec3.min(min, smin, min);
+        vec3.max(max, smax, max);
       }
       
       if (this.front) calcSide(this.front);
       if (this.back)  calcSide(this.back);
       
-      vec3.subtract(max, min, this.halfSize);
-      vec3.scale(this.halfSize, 0.5);
+      this.size     = vec3.subtract(max, min, vec3.create());
+      this.halfSize = vec3.scale(this.size, 0.5, vec3.create());
+      this.center   = vec3.add(min, this.halfSize, vec3.create());
 
-      return this.halfSize;
+      return this;
+    },
+    
+    getSize: function() {
+      if (!this.halfSize) this.calcHalfSize();
+      return this.size;
     },
     
     getCenter: function() {
@@ -234,8 +300,21 @@ var BSP = (function() {
         this.treeDepth++;
       }
       this.set(level[0], level[1]);
+      
+      // set depths
+      var depth = 0;
+      var nodes = [this];
+      this.depth = 0;
+      while (nodes.length) {
+        var x = nodes.shift();
+        if (x.front) { x.front.depth = x.depth + 1; nodes.push(x.front); }
+        if (x.back) { x.back.depth = x.depth + 1; nodes.push(x.back); }
+      }
+      
       this.finalized = true;
     },
+    
+    getDepth: function() { return this.depth; },
     
     getTreeDepth: function() { return this.treeDepth; },
     

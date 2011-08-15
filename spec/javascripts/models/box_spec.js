@@ -2,7 +2,7 @@ describe("Box", function() {
   var box;
   
   beforeEach(function() {
-    box = new Box([2, 2, 2], [1, 1, 1]);
+    box = new Box([2.5, 2.5, 2.5], [0.5,0.5,0.5]);
   });
   
   describe("intersection", function() {
@@ -11,34 +11,41 @@ describe("Box", function() {
       beforeEach(function() { cam = new Jax.Camera(); cam.setPosition([2,2,2]); });
       
       it("identity overlap hit", function() {
-        expect(box.intersectOBB(new Box([0,0,0], [1,1,1]), cam.getTransformationMatrix())).toBeTruthy();
+        expect(box.intersectOBB(new Box([2.5,2.5,2.5], [0.5,0.5,0.5]), mat4.IDENTITY)).toBeTruthy();
+      });
+      
+      it("camera overlap hit", function() {
+        expect(box.intersectOBB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]), cam.getTransformationMatrix())).toBeTruthy();
       });
       
       it("0.1 unit distance hit", function() {
-        var box1 = new Box([0,0,0], [1,1,1]);
-        var box2 = new Box([0,0.1,0], [1,1,1]);
+        var box1 = new Box([0.5,0.5,0.5], [0.5,0.5,0.5]);
+        var box2 = new Box([0.5,0.6,0.5], [0.5,0.5,0.5]);
         
         expect(box1.intersectOBB(box2, mat4.IDENTITY)).toBeTruthy();
       });
       
       it("0.1 unit translate hit", function() {
-        var box1 = new Box([0,0,0], [1,1,1]);
-        var box2 = new Box([0,0,0], [1,1,1]);
+        var box1 = new Box([0.5,0.5,0.5], [0.5,0.5,0.5]);
+        var box2 = new Box([0.5,0.5,0.5], [0.5,0.5,0.5]);
         var mat = mat4.identity(mat4.create());
         mat4.translate(mat, [0,0.1,0], mat);
         
         expect(box1.intersectOBB(box2, mat)).toBeTruthy();
       });
       
+      it("0.75 unit translate hit", function() {
+        var box1 = new Box([0.5,0.5,0.5], [1,1,1]);
+        var box2 = new Box([0.5,0.5,0.5], [1,1,1]);
+        var mat = mat4.identity(mat4.create());
+        mat4.translate(mat, [0,0.75,0], mat);
+        
+        expect(box1.intersectOBB(box2, mat)).toBeTruthy();
+      });
+      
       it("0.5rad Y-axis rotation hit", function() {
-        var box1 = new Box([0,0,0], [1,1,1]);
-        var box2 = new Box([1.01,0,0], [1,1,1]);
-        
-        // var cube1 = new Jax.Model({mesh:new Jax.Mesh.Cube()});
-        // var cube2 = new Jax.Model({mesh:new Jax.Mesh.Cube(),position:[1.01,0,0]});
-        
-        // var box1 = cube1.mesh.getBoundingBox();
-        // var box2 = cube2.mesh.getBoundingBox();
+        var box1 = new Box([0,0,0], [0.5,0.5,0.5]);
+        var box2 = new Box([1.01,0,0], [0.5,0.5,0.5]);
         
         var cam = new Jax.Camera();
         cam.rotate(0.5, [0,1,0]);
@@ -48,43 +55,43 @@ describe("Box", function() {
       
       it("rotated overlap hit", function() {
         cam.rotate(Math.PI/6, [0,1,0]);
-        expect(box.intersectOBB(new Box([0,0,0], [1,1,1]), cam.getTransformationMatrix())).toBeTruthy();
+        expect(box.intersectOBB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]), cam.getTransformationMatrix())).toBeTruthy();
       });
       
       it("offset hit", function() {
         cam.setPosition(1.5,1.5,1.5);
-        expect(box.intersectOBB(new Box([0,0,0], [1,1,1]), cam.getTransformationMatrix())).toBeTruthy();
+        expect(box.intersectOBB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]), cam.getTransformationMatrix())).toBeTruthy();
       });
       
       it("rotated offset hit", function() {
         cam.setPosition(1.5,1.5,1.5);
         cam.rotate(Math.PI/8, [0,1,0]);
-        expect(box.intersectOBB(new Box([0,0,0], [1,1,1]), cam.getTransformationMatrix())).toBeTruthy();
+        expect(box.intersectOBB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]), cam.getTransformationMatrix())).toBeTruthy();
       });
       
       it("offset miss", function() {
         cam.setPosition(-1,2,2);
-        expect(box.intersectOBB(new Box([0,0,0], [1,1,1]), cam.getTransformationMatrix())).toBeFalsy();
+        expect(box.intersectOBB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]), cam.getTransformationMatrix())).toBeFalsy();
       });
 
       it("rotated offset miss", function() {
         cam.setPosition(-1,2,2);
         cam.rotate(Math.PI, [0,1,0]);
-        expect(box.intersectOBB(new Box([0,0,0], [1,1,1]), cam.getTransformationMatrix())).toBeFalsy();
+        expect(box.intersectOBB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]), cam.getTransformationMatrix())).toBeFalsy();
       });
     });
     
     describe("aabb", function() {
       it("hit", function() {
-        expect(box.intersectAABB(new Box([1,1,1], [1.2,1.2,1.2]))).toBeTruthy();
+        expect(box.intersectAABB(new Box([1.5,1.5,1.5], [0.6,0.6,0.6]))).toBeTruthy();
       });
       
       it("overlap", function() {
-        expect(box.intersectAABB(new Box([2,2,2], [1,1,1]))).toBeTruthy();
+        expect(box.intersectAABB(new Box([2.5,2.5,2.5], [0.5,0.5,0.5]))).toBeTruthy();
       });
       
       it("miss", function() {
-        expect(box.intersectAABB(new Box([0,0,0], [1,1,1]))).toBeFalsy();
+        expect(box.intersectAABB(new Box([0.5,0.5,0.5], [0.5,0.5,0.5]))).toBeFalsy();
       });
     });
     

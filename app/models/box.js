@@ -19,43 +19,41 @@ var Box = (function() {
      *
      **/
     initialize: function() {
+      /*
       this.position = vec3.create();
-      this.size = vec3.create();
+      */
+      this.halfSize = vec3.create();
       this.center = vec3.create();
     
       switch(arguments.length) {
         case 0: break;
         case 6:
-          this.position[0] = arguments[0];
-          this.position[1] = arguments[1];
-          this.position[2] = arguments[2];
-          this.size[0] = arguments[3];
-          this.size[1] = arguments[4];
-          this.size[2] = arguments[5];
+          this.center[0] = arguments[0];
+          this.center[1] = arguments[1];
+          this.center[2] = arguments[2];
+          this.halfSize[0] = arguments[3];
+          this.halfSize[1] = arguments[4];
+          this.halfSize[2] = arguments[5];
           break;
         case 2:
-          vec3.set(arguments[0], this.position);
-          vec3.set(arguments[1], this.size);
+          vec3.set(arguments[0], this.center);
+          vec3.set(arguments[1], this.halfSize);
           break;
         case 1:
-          vec3.set(arguments[0].getPosition(), this.position);
-          vec3.set(arguments[0].getSize(), this.size);
+          vec3.set(arguments[0].getCenter(), this.center);
+          vec3.set(arguments[0].getHalfSize(), this.halfSize);
           break;
         default: throw new Error("invalid arguments");
       }
-    
-      vec3.scale(this.size, 0.5, this.center);
-      vec3.add(this.position, this.center, this.center);
     },
     
     toString: function() {
-      return "[Box position:"+this.position+"; center:"+this.center+"; size:"+this.size+"]";
+      return "[Box center:"+this.center+"; half-size:"+this.halfSize+"]";
     },
   
-    getPosition: function() { return this.position; },
-    getSize: function() { return this.size; },
+    getHalfSize: function() { return this.halfSize; },
     getCenter: function() { return this.center; },
-    getVolume: function() { return this.size[0] * this.size[1] * this.size[2]; },
+    getVolume: function() { return this.halfSize[0] * this.halfSize[1] * this.halfSize[2] * 8; },
   
     intersectRay: function(O, D, segmax) {
       if (segmax != undefined) return this.intersectLineSegment(O, D, segmax);
@@ -64,7 +62,7 @@ var Box = (function() {
       var abs_cross = vec3.create();
       var f;
       var diff = vec3.create();
-      var size = this.size;
+      var size = vec3.scale(this.halfSize, 2, vec3.create());
       var cross = vec3.create();
     
       vec3.subtract(O, this.center, diff);
@@ -109,13 +107,13 @@ var Box = (function() {
       } else {
         vec3.subtract(D, O, tmp);
         vec3.create();
-        D = vec3.normalize(D, bufs.D);
+        D = vec3.normalize(D, vec3.create());
       }
       
       var a0, a1, b0, b1;
       for (var i = 0; i < 3; i++) {
-        a0 = this.position[i];
-        a1 = this.position[i] + this.size[i];
+        a0 = this.center[i] - this.halfSize[i];
+        a1 = this.center[i] + this.halfSize[i];
         b0 = O[i];
         b1 = O[i] + tmp[i];
         var c;
@@ -128,14 +126,15 @@ var Box = (function() {
   
     intersectSphere: function(O, radius) {
       var mx = vec3.create();
-      vec3.add(this.position, this.size, mx);
+      vec3.add(this.center, this.halfSize, mx);
 
-      var dist = 0, d;
+      var dist = 0, d, ci;
       for(var i=0;i<3;i++)
       {
-        if (O[i] < this.position[i])
+        ci = this.center[i] - this.halfSize[i];
+        if (O[i] < ci)
         {
-          d = O[i] - this.position[i];
+          d = O[i] - ci;
           dist += d*d;
         }
         else
@@ -149,144 +148,111 @@ var Box = (function() {
     },
   
     intersectPoint: function(p) {
-      var pos = this.position;
-      var s = this.size;
-      if (p[0] < pos[0] || p[0] > (pos[0]+s[0])) return false;
-      if (p[1] < pos[1] || p[1] > (pos[1]+s[1])) return false;
-      if (p[2] < pos[2] || p[2] > (pos[2]+s[2])) return false;
+      var pos = this.center;
+      var s = this.halfSize;
+      if (p[0] < pos[0] - s[0] || p[0] > pos[0] + s[0]) return false;
+      if (p[1] < pos[1] - s[1] || p[1] > pos[1] + s[1]) return false;
+      if (p[2] < pos[2] - s[2] || p[2] > pos[2] + s[2]) return false;
       return true;
     },
   
     intersectAABB: function(b) {
-      var t1 = this.position;
+      var t1 = this.center;
       var t2 = vec3.create();
-      var p1 = b.getPosition();
+      var p1 = b.getCenter();
       var p2 = vec3.create();
-      vec3.add(t1, this.size, t2);
-      vec3.add(p1, b.getSize(), p2);
+      var bhs = b.getHalfSize();
+      vec3.add(t1, this.halfSize, t2);
+      vec3.add(p1, bhs, p2);
     
-      return (Math.max(p1[0], t1[0]) <= Math.min(p2[0], t2[0]) && 
-              Math.max(p1[1], t1[1]) <= Math.min(p2[1], t2[1]) && 
-              Math.max(p1[2], t1[2]) <= Math.min(p2[2], t2[2]));
+      return (Math.max(p1[0] - bhs[0], t1[0] - this.halfSize[0]) <= Math.min(p2[0], t2[0]) && 
+              Math.max(p1[1] - bhs[1], t1[1] - this.halfSize[1]) <= Math.min(p2[1], t2[1]) && 
+              Math.max(p1[2] - bhs[2], t1[2] - this.halfSize[2]) <= Math.min(p2[2], t2[2]));
     },
-  
+    
     intersectOBB: function(b, matrix) {
-      var ra, rb;
-      var a = this;
-      var R = mat3.identity(mat3.create()), AbsR = mat3.identity(mat3.create());
-      var i, j, tmp = vec3.create();
       
-      // set up half-size extents
-      a.e = vec3.scale(a.size, 0.5, vec3.create());
-      b.e = vec3.scale(b.size, 0.5, vec3.create());
+      var Pa = vec3.create(this.center),
+          Ax = vec3.create(vec3.UNIT_X), Ay = vec3.create(vec3.UNIT_Y), Az = vec3.create(vec3.UNIT_Z),
+          Wa = this.halfSize[0], Ha = this.halfSize[1], Da = this.halfSize[2];
       
-      // compute rotation matrix expressing b in a's coordinate frame
-      a.u = [vec3.create(vec3.UNIT_X), vec3.create(vec3.UNIT_Y), vec3.create(vec3.UNIT_Z)];
-      if (matrix) {
-        var rm = mat3.create();
-        // create normal matrix
-        mat4.toInverseMat3(matrix, rm);
-        mat3.transpose(rm);
-        b.u = [
-          mat3.multiplyVec3(rm, vec3.UNIT_X, vec3.create()),
-          mat3.multiplyVec3(rm, vec3.UNIT_Y, vec3.create()),
-          mat3.multiplyVec3(rm, vec3.UNIT_Z, vec3.create())
-        ];
-      }
-      else
-        b.u = [vec3.create(vec3.UNIT_X), vec3.create(vec3.UNIT_Y), vec3.create(vec3.UNIT_Z)];
-      for (i = 0; i < 3; i++)
-        for (j = 0; j < 3; j++)
-          R[i*3+j] = vec3.dot(a.u[i], b.u[j]);
-          
-      // compute translation vector t
-      var bc = mat4.multiplyVec3(matrix, vec3.create());
-      vec3.add(bc, b.getCenter(), bc);
-      var t = vec3.subtract(bc, a.getCenter(), vec3.create());
-      // bring translation into a's coordinate frame
-      tmp[0] = vec3.dot(t, a.u[0]);
-      tmp[1] = vec3.dot(t, a.u[1]);
-      tmp[2] = vec3.dot(t, a.u[2]);
-      vec3.set(tmp, t);
+      var Pb = vec3.create(b.center),
+          Bx = vec3.create(vec3.UNIT_X), By = vec3.create(vec3.UNIT_Y), Bz = vec3.create(vec3.UNIT_Z),
+          Wb = b.halfSize[0], Hb = b.halfSize[1], Db = b.halfSize[2];
       
-      // Compute common subexpressions. Add in an epsilon term to
-      // counteract arithmetic errors when two edges are parallel and
-      // their cross product is near null.
-      for (i = 0; i < 3; i++)
-        for (j = 0; j < 3; j++)
-          AbsR[i*3+j] = Math.abs(R[i*3+j]) + Math.EPSILON;
+      mat4.multiplyVec3(matrix, Pb, Pb);
       
-      // Test axes L = A0, L = A1, L = A2
-      for (i = 0; i < 3; i++) {
-        ra = a.e[i];
-        rb = b.e[0] * AbsR[i*3+0] + b.e[1] * AbsR[i*3+1] + b.e[2] * AbsR[i*3+2];
-        if (Math.abs(t[i]) > ra + rb)
-          return false;
-      }
+      var nm = mat4.toInverseMat3(matrix, mat3.create());
+      mat3.transpose(nm);
+      mat3.multiplyVec3(nm, Bx, Bx);
+      mat3.multiplyVec3(nm, By, By);
+      mat3.multiplyVec3(nm, Bz, Bz);
       
-      // Test axes L = B0, L = B1, L = B2
-      for (i = 0; i < 3; i++) {
-        ra = a.e[0] * AbsR[0*3+i] + a.e[1] * AbsR[1*3+i] + a.e[2] * AbsR[2*3+i];
-        rb = b.e[i];
-        if (Math.abs(t[0] * R[0*3+i] + t[1] * R[1*3+i] + t[2] * R[2*3+i]) > ra + rb)
-          return false;
-      }
+      var T = vec3.subtract(Pb, Pa, vec3.create());
       
-      // Test axis L = A0 X B0
-      ra = a.e[1] * AbsR[2*3+0] + a.e[2] * AbsR[1*3+0];
-      rb = b.e[1] * AbsR[0*3+2] + b.e[2] * AbsR[0*3+1];
-      if (Math.abs(t[2] * R[1*3+0] - t[1] * R[2*3+0]) > ra + rb)
+      // case 1: L = Ax
+      var Rxx = vec3.dot(Ax, Bx), Rxy = vec3.dot(Ax, By), Rxz = vec3.dot(Ax, Bz);
+      if (Math.abs(vec3.dot(T, Ax)) > Wa + Math.abs(Wb * Rxx) + Math.abs(Hb * Rxy) + Math.abs(Db * Rxz))
         return false;
         
-      // Test axis L = A0 X B1
-      ra = a.e[1] * AbsR[2*3+2] + a.e[2] * AbsR[1*3+2];
-      rb = b.e[0] * AbsR[0*3+1] + b.e[1] * AbsR[0*3+0];
-      if (Math.abs(t[2] * R[1*3+1] - t[1] * R[2*3+1]) > ra + rb)
+      // case 2: L = Ay
+      var Ryx = vec3.dot(Ay, Bx), Ryy = vec3.dot(Ay, By), Ryz = vec3.dot(Ay, Bz);
+      if (Math.abs(vec3.dot(T, Ay)) > Ha + Math.abs(Wb * Ryx) + Math.abs(Hb * Ryy) + Math.abs(Db * Ryz))
         return false;
       
-      // Test axis L = A0 X B2
-      ra = a.e[1] * AbsR[2*3+2] + a.e[2] * AbsR[1*3+2];
-      rb = b.e[0] * AbsR[0*3+1] + b.e[1] * AbsR[0*3+0];
-      if (Math.abs(t[2] * R[1*3+2] - t[1] * R[2*3+2]) > ra + rb)
+      // case 3: L = Az
+      var Rzx = vec3.dot(Az, Bx), Rzy = vec3.dot(Az, By), Rzz = vec3.dot(Az, Bz);
+      if (Math.abs(vec3.dot(T, Az)) > Da + Math.abs(Wb * Rzx) + Math.abs(Hb * Rzy) + Math.abs(Db * Rzz))
         return false;
 
-      // Test axis L = A1 X B0
-      ra = a.e[0] * AbsR[2*3+0] + a.e[2] * AbsR[0*3+0];
-      rb = b.e[1] * AbsR[1*3+2] + b.e[2] * AbsR[1*3+1];
-      if (Math.abs(t[0] * R[2*3+0] - t[2] * R[0*3+0]) > ra + rb)
+      // case 4: L = Bx
+      if (Math.abs(vec3.dot(T, Bx)) > Wb + Math.abs(Wa * Rxx) + Math.abs(Ha * Ryx) + Math.abs(Da * Rzx))
         return false;
 
-      // Test axis L = A1 X B1
-      ra = a.e[0] * AbsR[2*3+1] + a.e[2] * AbsR[0*3+1];
-      rb = b.e[0] * AbsR[1*3+2] + b.e[2] * AbsR[1*3+0];
-      if (Math.abs(t[0] * R[2*3+1] - t[2] * R[0*3+1]) > ra + rb)
+      // case 5: L = By
+      if (Math.abs(vec3.dot(T, By)) > Hb + Math.abs(Wa * Rxy) + Math.abs(Ha * Ryy) + Math.abs(Da * Rzy))
+        return false;
+      
+      // case 6: L = Bz
+      if (Math.abs(vec3.dot(T, Bz)) > Db + Math.abs(Wa * Rxz) + Math.abs(Ha * Ryz) + Math.abs(Da * Rzz))
         return false;
 
-      // Test axis L = A1 X B2
-      ra = a.e[0] * AbsR[2*3+2] + a.e[2] * AbsR[0*3+2];
-      rb = b.e[0] * AbsR[1*3+1] + b.e[1] * AbsR[1*3+0];
-      if (Math.abs(t[0] * R[2*3+2] - t[2] * R[0*3+2]) > ra + rb)
+      // case 7: L = Ax x Bx
+      if (Math.abs(vec3.dot(T, Az) * Ryx - vec3.dot(T, Ay) * Rzx) > Math.abs(Ha * Rzx) + Math.abs(Da * Ryx) + Math.abs(Hb * Rxz) + Math.abs(Db * Rxy))
         return false;
 
-      // Test axis L = A2 X B0
-      ra = a.e[0] * AbsR[1*3+0] + a.e[1] * AbsR[0*3+0];
-      rb = b.e[1] * AbsR[2*3+2] + b.e[2] * AbsR[2*3+1];
-      if (Math.abs(t[1] * R[0*3+0] - t[0] * R[1*3+0]) > ra + rb)
+      // case 8: L = Ax x By
+      if (Math.abs(vec3.dot(T, Az) * Ryy - vec3.dot(T, Ay) * Rzy) > Math.abs(Ha * Rzy) + Math.abs(Da * Ryy) + Math.abs(Wb * Rxz) + Math.abs(Db * Rxx))
+        return false;
+      
+      // case 9: L = Ax x Bz
+      if (Math.abs(vec3.dot(T, Az) * Ryz - vec3.dot(T, Ay) * Rzz) > Math.abs(Ha * Rzz) + Math.abs(Da * Ryz) + Math.abs(Wb * Rxy) + Math.abs(Hb * Rxx))
         return false;
 
-      // Test axis L = A2 X B1
-      ra = a.e[0] * AbsR[1*3+1] + a.e[1] * AbsR[0*3+1];
-      rb = b.e[0] * AbsR[2*3+2] + b.e[2] * AbsR[2*3+0];
-      if (Math.abs(t[1] * R[0*3+1] - t[0] * R[1*3+1]) > ra + rb)
+      // case 10: L = Ay x Bx
+      if (Math.abs(vec3.dot(T, Ax) * Rzx - vec3.dot(T, Az) * Rxx) > Math.abs(Wa * Rzx) + Math.abs(Da * Rxx) + Math.abs(Hb * Ryz) + Math.abs(Db * Ryy))
         return false;
 
-      // Test axis L = A2 X B2
-      ra = a.e[0] * AbsR[1*3+2] + a.e[1] * AbsR[0*3+2];
-      rb = b.e[0] * AbsR[2*3+1] + b.e[1] * AbsR[2*3+0];
-      if (Math.abs(t[1] * R[0*3+2] - t[0] * R[1*3+2]) > ra + rb)
+      // case 11: L = Ay x By
+      if (Math.abs(vec3.dot(T, Ax) * Rzy - vec3.dot(T, Az) * Rxy) > Math.abs(Wa * Rzy) + Math.abs(Da * Rxy) + Math.abs(Wb * Ryz) + Math.abs(Db * Ryx))
         return false;
 
-      // since no separating axes are found, the OBBs must be intersecting
+      // case 12: L = Ay x Bz
+      if (Math.abs(vec3.dot(T, Ax) * Rzz - vec3.dot(T, Az) * Rxz) > Math.abs(Wa * Rzz) + Math.abs(Da * Rxz) + Math.abs(Wb * Ryy) + Math.abs(Hb * Ryx))
+        return false;
+
+      // case 13: L = Az x Bx
+      if (Math.abs(vec3.dot(T, Ay) * Rxx - vec3.dot(T, Ax) * Ryx) > Math.abs(Wa * Ryx) + Math.abs(Ha * Rxx) + Math.abs(Hb * Rzz) + Math.abs(Db * Rzy))
+        return false;
+
+      // case 14: L = Az x By
+      if (Math.abs(vec3.dot(T, Ay) * Rxy - vec3.dot(T, Ax) * Ryy) > Math.abs(Wa * Ryy) + Math.abs(Ha * Rxy) + Math.abs(Wb * Rzz) + Math.abs(Db * Rzx))
+        return false;
+
+      // case 15: L = Az x Bz
+      if (Math.abs(vec3.dot(T, Ay) * Rxz - vec3.dot(T, Ax) * Ryz) > Math.abs(Wa * Ryz) + Math.abs(Ha * Rxz) + Math.abs(Wb * Rzy) + Math.abs(Hb * Rzx))
+        return false;
+
       return true;
     }
   });
