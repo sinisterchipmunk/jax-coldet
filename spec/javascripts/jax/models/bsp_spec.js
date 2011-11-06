@@ -2,6 +2,16 @@ describe("BSP", function() {
   var bsp
   beforeEach(function() { bsp = new BSP(); });
   
+  it("identical, same position", function() {
+    var tri  = new Jax.Geometry.Triangle([-0.7006292939186096,0.5,0.5090369582176208], [-0.7911535501480103,0.5,0.3522442579269409], [-0.7390738129615784,0.5877852439880371,0.32905685901641846]);
+    var tri2 = new Jax.Geometry.Triangle([-0.7006292939186096,0.5,0.5090369582176208], [-0.7911535501480103,0.5,0.3522442579269409], [-0.7390738129615784,0.5877852439880371,0.32905685901641846]);
+    var point = vec3.create()
+    
+    var line = new Jax.Geometry.Line();
+    expect(tri.intersectTriangle(tri2, line)).toBeTruthy();
+  });
+
+
   it("0.5rad Y-axis rotation hit", function() {
     bsp.addMesh(new Jax.Mesh.Cube());
     var cam = new Jax.Camera();

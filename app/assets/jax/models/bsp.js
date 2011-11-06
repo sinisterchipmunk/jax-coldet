@@ -1,3 +1,5 @@
+//= require "ext/vec3"
+
 var BSP = (function() {
   // +level+ is an array, containing either Triangles or BSP nodes.
   // This function replaces every 2 elements in the array with a single
@@ -195,6 +197,7 @@ var BSP = (function() {
       var check_id = 1;
       checks[0][0] = this;
       checks[0][1] = other;
+      var collisionPoint;
       var tri = new Jax.Geometry.Triangle(), a = vec3.create(), b = vec3.create(), c = vec3.create();
       
       while (check_id > 0) {
@@ -231,17 +234,119 @@ var BSP = (function() {
           mat4.multiplyVec3(transform, second.c, c);
           tri.set(a, b, c);
           
-          if (first.intersectTriangle(tri)) {
+          collisionPoint = collisionPoint || vec3.create();
+          try {
+            if (first.intersectTriangle(tri, collisionPoint)) {
+              this.collision = {
+                first: first,
+                second: second,
+                collisionPoint: collisionPoint,
+                second_transformed: new Jax.Geometry.Triangle(tri.a, tri.b, tri.c)
+              };
+              return this.collision;
+            }
+          } catch(e) {
+            alert(e+" with\n\n" + first + "\n\n" + tri + "\n\n" + collisionPoint);
+            throw e;
+          }
+        }
+      }
+      return false;
+    },
+    
+    collideSphere: function(position, radius) {
+      if (!this.finalized) this.finalize();
+      
+      // buffer checks for GC optimization
+      var collisionPoint;
+      var checks = this.checks = this.checks || [];
+      var check_id = 1;
+      checks[0] = this;
+      
+      while (check_id > 0) {
+        var node = checks[--check_id];
+        if (node instanceof BSP) {
+          // element is a BSP node, if it intersects move to the next level;
+          // if it doesn't, let it disappear
+          if (node.box.intersectSphere(position, radius)) {
+            var d1 = this._dist1 = this._dist1 || vec3.create();
+            
+            var len1 = vec3.length(vec3.subtract(node.front.center, position, d1));
+            var len2 = vec3.length(vec3.subtract(node.back.center, position, d1));
+            
+            if (len1 < len2) {
+              // front is closer, check it FIRST since it's more likely to collide
+              checks[check_id  ] = node.front;
+              checks[check_id+1] = node.back;
+            } else {
+              checks[check_id  ] = node.back;
+              checks[check_id+1] = node.front;
+            }
+            
+            check_id += 2;
+          }
+        } else {
+          // dealing with a triangle, perform intersection test
+          // transform second into first's coordinate space
+          collisionPoint = collisionPoint || vec3.create();
+          if (node.intersectSphere(position, radius, collisionPoint)) {
+            var distance = vec3.length(vec3.subtract(collisionPoint, position, vec3.create()));
             this.collision = {
-              first: first,
-              second: second,
-              second_transformed: new Jax.Geometry.Triangle(tri.a, tri.b, tri.c)
+              triangle: node,
+              collisionPoint: collisionPoint,
+              penetration: radius - distance
             };
             return this.collision;
           }
         }
       }
-      if (this.collision) delete this.collision;
+      return false;
+    },
+    
+    collideLineSegment: function(origin, direction, length) {
+      if (!this.finalized) this.finalize();
+      
+      // buffer checks for GC optimization
+      var checks = this.checks = this.checks || [];
+      var check_id = 1;
+      checks[0] = this;
+      var collisionPoint;
+      
+      while (check_id > 0) {
+        var node = checks[--check_id];
+        if (node instanceof BSP) {
+          // element is a BSP node, if it intersects move to the next level;
+          // if it doesn't, let it disappear
+          if (node.box.intersectLineSegment(origin, direction, length)) {
+            var d1 = this._dist1 = this._dist1 || vec3.create();
+            
+            var len1 = vec3.length(vec3.subtract(node.front.center, position, d1));
+            var len2 = vec3.length(vec3.subtract(node.back.center, position, d1));
+            
+            if (len1 < len2) {
+              // front is closer, check it FIRST since it's more likely to collide
+              checks[check_id  ] = node.front;
+              checks[check_id+1] = node.back;
+            } else {
+              checks[check_id  ] = node.back;
+              checks[check_id+1] = node.front;
+            }
+
+            check_id += 2;
+          }
+        } else {
+          // dealing with a triangle, perform intersection test
+          // transform second into first's coordinate space
+          collisionPoint = collisionPoint || vec4.create();
+          if (node.intersectRay(origin, direction, collisionPoint, length)) {
+            this.collision = {
+              triangle: node,
+              collisionPoint: collisionPoint
+            };
+            return this.collision;
+          }
+        }
+      }
       return false;
     },
     

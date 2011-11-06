@@ -172,23 +172,33 @@ var Box = (function() {
     
     intersectOBB: function(b, matrix) {
       
-      var Pa = vec3.create(this.center),
-          Ax = vec3.create(vec3.UNIT_X), Ay = vec3.create(vec3.UNIT_Y), Az = vec3.create(vec3.UNIT_Z),
+      var Pa = bufs.Pa = bufs.Pa || vec3.create(),
+          Ax = vec3.UNIT_X, Ay = vec3.UNIT_Y, Az = vec3.UNIT_Z,
           Wa = this.halfSize[0], Ha = this.halfSize[1], Da = this.halfSize[2];
       
-      var Pb = vec3.create(b.center),
-          Bx = vec3.create(vec3.UNIT_X), By = vec3.create(vec3.UNIT_Y), Bz = vec3.create(vec3.UNIT_Z),
+      var Pb = bufs.Pb = bufs.Pb || vec3.create(),
+          Bx = bufs.Bx = bufs.Bx || vec3.create(),
+          By = bufs.By = bufs.By || vec3.create(),
+          Bz = bufs.Bz = bufs.Bz || vec3.create(),
           Wb = b.halfSize[0], Hb = b.halfSize[1], Db = b.halfSize[2];
+          
+      vec3.set(this.center, Pa);
+      vec3.set(b.center, Pb);
+      vec3.set(vec3.UNIT_X, Bx);
+      vec3.set(vec3.UNIT_Y, By);
+      vec3.set(vec3.UNIT_Z, Bz);
       
       mat4.multiplyVec3(matrix, Pb, Pb);
       
-      var nm = mat4.toInverseMat3(matrix, mat3.create());
+      var nm = bufs.nm = bufs.nm || mat3.create();
+      mat4.toInverseMat3(matrix, nm);
       mat3.transpose(nm);
       mat3.multiplyVec3(nm, Bx, Bx);
       mat3.multiplyVec3(nm, By, By);
       mat3.multiplyVec3(nm, Bz, Bz);
       
-      var T = vec3.subtract(Pb, Pa, vec3.create());
+      var T = bufs.T = bufs.T || vec3.create();
+      vec3.subtract(Pb, Pa, T);
       
       // case 1: L = Ax
       var Rxx = vec3.dot(Ax, Bx), Rxy = vec3.dot(Ax, By), Rxz = vec3.dot(Ax, Bz);
