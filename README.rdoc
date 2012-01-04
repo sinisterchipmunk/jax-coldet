@@ -6,6 +6,16 @@ A fast collision detection library for the {Jax}[http://github.com/sinisterchipm
 
 This library uses a combination of BSP trees, bounding boxes and the built-in +Jax.Geometry.Triangle+ to perform collision detection using an arbitrary mesh. Objects don't have to use the same mesh for collision as they do for rendering; they can use a completely separate mesh (for instance, a specially-tailored collision mesh with fewer vertices or a different shape) for collision testing.
 
+=== Installation
+
+From a Jax or Rails project (that uses Jax), install the jax-coldet plugin:
+
+    jax plugin install coldet
+
+If you want to install the latest development version from Git, simply clone it into your project:
+
+    git clone git://github.com/sinisterchipmunk/jax-coldet ./vendor/plugins/coldet
+
 === Usage
 
 Usage is relatively simple, though it will be further streamlined in the future.
